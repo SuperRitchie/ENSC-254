@@ -1,0 +1,193 @@
+
+E:\XilinxWorkspace\Lab-HW7b\Debug\src\asm.o:     file format elf32-littlearm
+E:\XilinxWorkspace\Lab-HW7b\Debug\src\asm.o
+architecture: arm, flags 0x00000011:
+HAS_RELOC, HAS_SYMS
+start address 0x00000000
+private flags = 5000000: [Version5 EABI]
+
+Sections:
+Idx Name          Size      VMA       LMA       File off  Algn
+  0 .text         000000b0  00000000  00000000  00000034  2**2
+                  CONTENTS, ALLOC, LOAD, RELOC, READONLY, CODE
+  1 .data         00000000  00000000  00000000  000000e4  2**0
+                  CONTENTS, ALLOC, LOAD, DATA
+  2 .bss          00000000  00000000  00000000  000000e4  2**0
+                  ALLOC
+  3 .debug_line   0000006d  00000000  00000000  000000e4  2**0
+                  CONTENTS, RELOC, READONLY, DEBUGGING
+  4 .debug_info   00000026  00000000  00000000  00000151  2**0
+                  CONTENTS, RELOC, READONLY, DEBUGGING
+  5 .debug_abbrev 00000014  00000000  00000000  00000177  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  6 .debug_aranges 00000020  00000000  00000000  00000190  2**3
+                  CONTENTS, RELOC, READONLY, DEBUGGING
+  7 .debug_str    0000003d  00000000  00000000  000001b0  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  8 .ARM.attributes 00000029  00000000  00000000  000001ed  2**0
+                  CONTENTS, READONLY
+SYMBOL TABLE:
+00000000 l    d  .text	00000000 .text
+00000000 l    d  .data	00000000 .data
+00000000 l    d  .bss	00000000 .bss
+00000060 l       .text	00000000 .poll
+00000000 l    d  .debug_info	00000000 .debug_info
+00000000 l    d  .debug_abbrev	00000000 .debug_abbrev
+00000000 l    d  .debug_line	00000000 .debug_line
+00000000 l    d  .debug_str	00000000 .debug_str
+00000000 l    d  .debug_aranges	00000000 .debug_aranges
+00000000 l    d  .ARM.attributes	00000000 .ARM.attributes
+00000000 g     F .text	00000098 asm_main
+00000000         *UND*	00000000 OLED_clear
+00000000         *UND*	00000000 OLED_welcome
+00000000         *UND*	00000000 OLED_print_R0_on_row_R1
+00000000         *UND*	00000000 fib_main
+00000098 g     F .text	00000018 FIQHandler
+
+
+
+Disassembly of section .text:
+
+00000000 <asm_main>:
+#include "asm_include.h"
+#include "macros.i"
+
+.text
+
+FUNC	asm_main
+   0:	e320f000 	nop	{0}
+	PUSH	{R4-R11, LR}
+   4:	e92d4ff0 	push	{r4, r5, r6, r7, r8, r9, sl, fp, lr}
+	BL	OLED_clear
+   8:	ebfffffe 	bl	0 <OLED_clear>
+			8: R_ARM_CALL	OLED_clear
+	BL	OLED_welcome
+   c:	ebfffffe 	bl	0 <OLED_welcome>
+			c: R_ARM_CALL	OLED_welcome
+	LDR	R0, =0 @ total_events
+  10:	e3a00000 	mov	r0, #0
+
+	@Switch to FIQ mode
+	LDR	R1, =XREG_CPSR_FIQ_MODE
+  14:	e3a01011 	mov	r1, #17
+	MSR	CPSR_c, R1
+  18:	e121f001 	msr	CPSR_c, r1
+
+	@Initialize FIQ registers for the purposes
+	@of the FIQ being able to use them
+	LDR	R9, =XPAR_AXI_GPIO_BTNS_BASEADDR  @ EOR R9, R9
+  1c:	e59f9068 	ldr	r9, [pc, #104]	; 8c <.poll+0x2c>
+	LDR	R10, =XPAR_AXI_GPIO_LEDS_BASEADDR
+  20:	e59fa068 	ldr	sl, [pc, #104]	; 90 <.poll+0x30>
+
+	@Button interrupt on.
+	LDR 	R8, =XGPIO_GIE_GINTR_ENABLE_MASK
+  24:	e3a08102 	mov	r8, #-2147483648	; 0x80000000
+	STR 	R8, [R9, #XGPIO_GIE_OFFSET]
+  28:	e589811c 	str	r8, [r9, #284]	; 0x11c
+	LDR 	R8, =XGPIO_IR_CH1_MASK
+  2c:	e3a08001 	mov	r8, #1
+	STR 	R8, [R9, #XGPIO_IER_OFFSET]
+  30:	e5898128 	str	r8, [r9, #296]	; 0x128
+
+	;@ The connections to the LEDs and switches are initially configured as inputs. This works well
+	;@ for the switches but not so helpful for the LEDs.  Connections can be changed to outputs by
+	;@ clearing their corresponding bits in the GPIO 'Tristate Register'. The
+	;@ Tristate register is at an offset from the base address for GPIO ports.
+	ldr 	R8, [R10, #XGPIO_TRI_OFFSET] ;@ Read the tristate register for the LEDs
+  34:	e59a8004 	ldr	r8, [sl, #4]
+	bic 	R8, #0xFF   				;@ Clear the first 8 tristate bits to enable the 8 LEDs as outputs
+  38:	e3c880ff 	bic	r8, r8, #255	; 0xff
+	str 	R8, [R10, #XGPIO_TRI_OFFSET]	;@ Write new value to LED tristate register to enable as outputs
+  3c:	e58a8004 	str	r8, [sl, #4]
+	str 	r0, [r10, #XGPIO_DATA_OFFSET]	;@ write 0 to LEDs to turn them off
+  40:	e58a0000 	str	r0, [sl]
+
+	MOV 	R8, R0 @ total_events
+  44:	e1a08000 	mov	r8, r0
+
+	@Switch back to system mode
+	LDR 	R1, =XREG_CPSR_SYSTEM_MODE
+  48:	e3a0101f 	mov	r1, #31
+	MSR 	CPSR_c, R1
+  4c:	e121f001 	msr	CPSR_c, r1
+
+	MOV 	R1, #3
+  50:	e3a01003 	mov	r1, #3
+	BL 	OLED_print_R0_on_row_R1
+  54:	ebfffffe 	bl	0 <OLED_print_R0_on_row_R1>
+			54: R_ARM_CALL	OLED_print_R0_on_row_R1
+
+	@Enable fast interrupts
+	CPSIE 	f
+  58:	f1080040 	cpsie	f
+
+	;@ Load base addresses for ... and Slider Switch GPIO
+	ldr 	r4, =XPAR_AXI_GPIO_SWS_BASEADDR		;@ load base address of Switches into r4
+  5c:	e59f4030 	ldr	r4, [pc, #48]	; 94 <.poll+0x34>
+
+00000060 <.poll>:
+
+.poll:
+	;@ The Data Register is located directly at the base address of the GPIO ports
+	;@ so by reading the base address we can read from the data register.
+	;@ Still a (zero) offset has been defined for the Data Register.
+	ldr 	r6, [r4, #XGPIO_DATA_OFFSET]	;@ read slider switches
+  60:	e5946000 	ldr	r6, [r4]
+	mov	r6, r6, lsl #9					;@ scale value up
+  64:	e1a06486 	lsl	r6, r6, #9
+	mov 	r0, r6
+  68:	e1a00006 	mov	r0, r6
+	mov 	r1, #1
+  6c:	e3a01001 	mov	r1, #1
+	BL 	OLED_print_R0_on_row_R1
+  70:	ebfffffe 	bl	0 <OLED_print_R0_on_row_R1>
+			70: R_ARM_CALL	OLED_print_R0_on_row_R1
+	mov 	r0, r6
+  74:	e1a00006 	mov	r0, r6
+	BL 	fib_main
+  78:	ebfffffe 	bl	0 <fib_main>
+			78: R_ARM_CALL	fib_main
+	MOV 	R1, #2
+  7c:	e3a01002 	mov	r1, #2
+	BL 	OLED_print_R0_on_row_R1
+  80:	ebfffffe 	bl	0 <OLED_print_R0_on_row_R1>
+			80: R_ARM_CALL	OLED_print_R0_on_row_R1
+	B 	.poll
+  84:	eafffff5 	b	60 <.poll>
+
+	POP 	{R4-R11, PC}
+  88:	e8bd8ff0 	pop	{r4, r5, r6, r7, r8, r9, sl, fp, pc}
+	LDR	R9, =XPAR_AXI_GPIO_BTNS_BASEADDR  @ EOR R9, R9
+  8c:	41200000 	.word	0x41200000
+	LDR	R10, =XPAR_AXI_GPIO_LEDS_BASEADDR
+  90:	41210000 	.word	0x41210000
+	ldr 	r4, =XPAR_AXI_GPIO_SWS_BASEADDR		;@ load base address of Switches into r4
+  94:	41220000 	.word	0x41220000
+
+00000098 <FIQHandler>:
+ENDFUNC asm_main
+
+FUNC	FIQHandler
+  98:	e320f000 	nop	{0}
+@ Reminder.  FIQ mode has its own versions of R8 through R12 (and R13 and R14)
+@ Also, notice how fast this hander is.
+
+	@Clear the button interrupt here.
+	LDR 	R12, [R9, #XGPIO_ISR_OFFSET]
+  9c:	e599c120 	ldr	ip, [r9, #288]	; 0x120
+	STR 	R12, [R9, #XGPIO_ISR_OFFSET]
+  a0:	e589c120 	str	ip, [r9, #288]	; 0x120
+
+	ADD 	R8, R8, #1 @ increment count of total interrupts
+  a4:	e2888001 	add	r8, r8, #1
+
+	str 	r8, [r10, #XGPIO_DATA_OFFSET]	;@write value to LED
+  a8:	e58a8000 	str	r8, [sl]
+	@ Dubious offset, I know. Still, here's the reference:
+	@ old --> http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0040d/Cacbacic.html
+	@ https://developer.arm.com/documentation/den0013/d/Exception-Handling/Exception-priorities/The-return-instruction?lang=en
+
+	@ The S at the end of SUBS causes the SPSR of the mode (FIQ in this case) to be put back in the CPSR
+	SUBS	PC, LR, #4
+  ac:	e25ef004 	subs	pc, lr, #4
